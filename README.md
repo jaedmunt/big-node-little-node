@@ -13,8 +13,7 @@ Goals:
 
 - [ ] Rig the models to converse with each other and have a conversation about a topic
 
-## Hardware and network
-
+## Hardware, OS 
 - [Raspberry Pi 4B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
 
 <div style="display: inline-block; background-color: blue; padding: 10px; width: 50%;">
@@ -39,9 +38,79 @@ Micro-SD card slot for loading operating system and data storage
 Power over Ethernet (PoE) enabled (requires separate PoE HAT)
 Operating temperature: 0 – 50 degrees C ambient
 ```
-</div>   
+</div>
+
+- Raspberry Pi OS (Debian GNU/Linux 13.3 (trixie))
+- BCM2711 (4) @ 1.80 GHz *n.b. ARM architecture*
+- Broadcom bcm2711-vc5 [Integrated]
 
 
 
 
-- Desktop PC - home build
+
+```bash
+        _,met$$$$$gg.          admin@thunderpi
+     ,g$$$$$$$$$$$$$$$P.       ---------------
+   ,g$$P""       """Y$$.".     OS: Debian GNU/Linux 13 (trixie) aarch64
+  ,$$P'              `$$$.     Host: Raspberry Pi 4 Model B Rev 1.4
+',$$P       ,ggs.     `$$b:    Kernel: Linux 6.12.62+rpt-rpi-v8
+`d$$'     ,$P"'   .    $$$     Uptime: 1 hour, 35 mins
+ $$P      d$'     ,    $$P     Packages: 1712 (dpkg)
+ $$:      $$.   -    ,d$$'     Shell: zsh 5.9
+ $$;      Y$b._   _,d$P'       Display (DSI-1): 800x480 @ 60 Hz in 7"
+ Y$$.    `.`"Y$$$$P"'          WM: labwc (Wayland)
+ `$$b      "-.__               Cursor: Adwaita
+  `Y$$b                        Terminal: /dev/pts/0
+   `Y$$.                       CPU: BCM2711 (4) @ 1.80 GHz
+     `$$b.                     GPU: Broadcom bcm2711-vc5 [Integrated]
+       `Y$$b.                  Memory: 387.95 MiB / 3.71 GiB (10%)
+         `"Y$b._               Swap: 0 B / 2.00 GiB (0%)
+             `""""             Disk (/): 10.47 GiB / 28.09 GiB (37%) - ext4
+                               Local IP (wlan0):[redacted] 
+                               Locale: en_GB.UTF-8
+
+```
+
+
+Running Raspberry 
+
+
+
+
+- Desktop PC - home build *(trimmed down to just the important bits)*
+
+  - Windows 11 with WSL (Archlinux)
+  - NVIDIA GeForce RTX 3060 (11.83 GiB)
+  - Intel(R) Core(TM) i5-10500 (12) @ 3.10 GHz
+
+```bash
+                  -`                     root@DESKTOP-C0P5MSL
+                 .o+`                    --------------------
+                `ooo/                    OS: Arch Linux x86_64
+               `+oooo:                   Kernel: Linux 6.6.87.2-microsoft-standard-WSL2
+              `+oooooo:                  Uptime: 1 hour, 10 mins
+              -+oooooo+:                 Packages: 829 (pacman)
+            `/:-:++oooo+:                Shell: zsh 5.9
+           `/++++/+++++++:               Display (XWAYLAND0): 2560x1440, 60 Hz
+          `/++++++++++++++:              Display (XWAYLAND1): 1920x1080 in 24", 60 Hz
+         `/+++ooooooooooooo/`            WM: Weston WM (Microsoft Corporation)
+        ./ooosssso++osssssso+`           Cursor: Adwaita
+       .oossssso-````/ossssss+`          Terminal: nvim
+      -osssssso.      :ssssssso.         CPU: Intel(R) Core(TM) i5-10500 (12) @ 3.10 GHz
+     :osssssss/        osssso+++.        GPU 1: NVIDIA GeForce RTX 3060 (11.83 GiB) [Discrete]
+    /ossssssss/        +ssssooo/-        GPU 2: Intel(R) UHD Graphics 630 (128.00 MiB) [Integrated]
+  `/ossssso+/:-        -:/+osssso+-      Memory: 851.17 MiB / 39.10 GiB (2%)
+ `+sso+:-`                 `.-/+oso:     Swap: 0 B / 10.00 GiB (0%)
+`++:.                           `-/+/    Disk (/): 31.86 GiB / 1006.85 GiB (3%) - ext4
+.`                                 `/    Disk (/mnt/c): [redacted] 
+                                         Disk (/mnt/d): [redacted]
+                                         Disk (/mnt/e): [redacted]
+                                         Disk (/mnt/f): 354.65 GiB / 931.50 GiB (38%) - 9p
+                                         Local IP (eth0):  [redacted]
+                                         Locale: en_US.UTF-8
+
+```
+
+## Networking
+
+
