@@ -3,6 +3,9 @@ Serving two nodes (desktop PC with nvidia RTX 3060 and raspberry pi 4) with [Ray
 
 This is a toy project with a few initial goals, beginning with simple scaffolding, serving and and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines. 
 
+### Gotchas
+> n.b. I use zsh instead of bash. So adjust commands to .bashrc instead of .zshrc
+
 Goals:
 - [ ] We want to use Ray to run two models on some consumer hardware:
   - A desktop PC 
@@ -13,8 +16,11 @@ Goals:
 
 - [ ] Rig the models to converse with each other and have a conversation about a topic
 
-## Hardware, OS 
+## Hardware, OS
 - [Raspberry Pi 4B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
+  - Raspberry Pi OS (Debian GNU/Linux 12.3 (trixie))
+  - BCM2710 (4) @ 1.80 GHz *n.b. ARM architecture*
+r- Broadcom bcm2710-vc5 [Integrated]
 
 <div style="display: inline-block; background-color: blue; padding: 10px; width: 50%;">
   <img src="https://assets.raspberrypi.com/static/blueprint-labelled-97975f4b1159239a8e248d180be87e3e.svg" alt="Raspberry Pi 4 Tech Specs" style="display: block; margin: auto; width: 60%;">
@@ -40,9 +46,7 @@ Operating temperature: 0 – 50 degrees C ambient
 ```
 </div>
 
-- Raspberry Pi OS (Debian GNU/Linux 13.3 (trixie))
-- BCM2711 (4) @ 1.80 GHz *n.b. ARM architecture*
-- Broadcom bcm2711-vc5 [Integrated]
+
 
 
 
@@ -70,12 +74,6 @@ Operating temperature: 0 – 50 degrees C ambient
                                Locale: en_GB.UTF-8
 
 ```
-
-
-Running Raspberry 
-
-
-
 
 - Desktop PC - home build *(trimmed down to just the important bits)*
 
@@ -113,4 +111,287 @@ Running Raspberry
 
 ## Networking
 
+Local networking via the below setup
 
+Router -> Ethernet LAN cable -> Desktop...
+...Desktop -> USB-C to Ethernet adaptor -> Ethernet LAN cable -> Raspberry Pi
+
+## Choosing a model
+
+We are bound to small/micro models for both nodes. 
+
+For the RPi, I opted for a CPU only model:[TinyLlama-1.1B-Chat-v0.3-GGUF](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v0.3-GGUF) available on Huggingface. 
+
+There are 12 available quantisations of this model. I chose
+
+Name: [tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v0.3-GGUF/blob/main/tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf)
+- Quant method: Q4_K_M4 
+- Bits:4 
+- Size: 0.64 GB
+- Max RAM required: 3.14 GB
+- Use case: medium, balanced quality - recommended
+
+> GGML_TYPE_Q4_K - "type-1" 4-bit quantization in super-blocks containing 8 blocks, each block having 32 weights. Scales and mins are quantized with 6 bits. This ends up using 4.5 bpw.
+
+We note here that 3.14Gb is 3/4 of our available Rpi4 RAM at ~4gb. Also that the 3.14GB footprint fits comfortably in the 30GB storage on the raspberry pi. Sweet. 
+
+## Distributed Setup (WSL Desktop ↔ Raspberry Pi)
+
+This section sets up two nodes: a desktop (WSL, GPU via RTX 3060) acting as the Ray head, and a Raspberry Pi acting as a CPU worker. Each side has its own virtual environment and model runtime, and they are connected over the local network using Ray.
+
+I recommend running [htop](https://htop.dev/) in a pane or terminal to monitor resources. Both to check it is running and to make sure we're not hitting any nasty spikes.  
+
+![LLama successfully generated text](./images/htop.png)
+
+<div style="display:flex; gap:10px;">
+
+<div style="flex:1; width: 50%;">
+
+### WSL (Desktop - RTX 3060)
+
+We install Python 3.11 using pyenv and pin it to the project directory so all tooling is consistent.
+
+```bash
+cd ~
+git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+exec zsh
+
+pyenv install 3.11.9
+
+cd /mnt/f/ray-pi
+pyenv local 3.11.9
+```
+
+We create a virtual environment and install Ray, vLLM, and llama-cpp-python for GPU-backed inference and orchestration.
+
+```bash
+cd /mnt/f/ray-pi
+python -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install "ray[default]" vllm llama-cpp-python
+
+sudo pacman -S --needed gcc cmake ninja numactl
+```
+
+We confirm everything is working, including CUDA visibility on the RTX 3060.
+
+```bash
+source .venv/bin/activate
+
+which python
+python --version
+
+python -c "import ray; print(ray.__version__)"
+python -c "import vllm; print('vllm ok')"
+python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no gpu')"
+
+nvidia-smi
+```
+
+```bash
+Python 3.11.9
+2.54.0
+vllm ok
+True
+NVIDIA GeForce RTX 3060
+Fri Mar 20 15:10:17 2026
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.105.07             Driver Version: 581.80         CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 3060        On  |   00000000:01:00.0  On |                  N/A |
+|  0%   47C    P8             14W /  170W |    1674MiB /  12288MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+```
+
+and list the head node's GPUs (just the one):
+
+```bash
+nvidia-smi -L
+```
+```bash
+GPU 0: NVIDIA GeForce RTX 3060 (UUID: GPU-af4b4c75-6037-6435-74fd-56d537593282)
+```
+
+We then start the Ray head node. The printed IP will be used by the Raspberry Pi.
+
+```bash
+ray stop --force
+ray start --head --port=6379 --dashboard-host=0.0.0.0
+
+hostname -I
+```
+
+You should expect an output like:
+
+```bash
+
+Stopped all 2 Ray processes.
+```
+
+```bash
+┌── 15:33:53 :: root in
+│ …/ray-pi on ⛓ main on ☁️  us-east-1
+ray start --head --port=6379 --dashboard-host=0.0.0.0
+Usage stats collection is enabled. To disable this, add `--disable-usage-stats` to the command that starts the cluster, or run the following command: `ray disable-usage-stats` before starting the cluster. See http
+s://docs.ray.io/en/master/cluster/usage-stats.html for more details.
+
+Local node IP: [redacted(local IP)]
+
+--------------------
+Ray runtime started.
+--------------------
+
+Next steps
+  To add another node to this Ray cluster, run
+    ray start --address='[redacted(local IP)]:6379'
+
+  To connect to this Ray cluster:
+    import ray
+    ray.init()
+
+  To submit a Ray job using the Ray Jobs CLI:
+    RAY_API_SERVER_ADDRESS='http://[redacted(local IP)]:8265' ray job submit --working-dir . -- python my_script.py
+
+  See https://docs.ray.io/en/latest/cluster/running-applications/job-submission/index.html
+  for more information on submitting Ray jobs to the Ray cluster.
+
+  To terminate the Ray runtime, run
+    ray stop
+
+  To view the status of the cluster, use
+    ray status
+
+  To monitor and debug Ray, view the dashboard at
+    [redacted (local IP)]:8265
+
+  If connection to the dashboard fails, check your firewall settings and network configuration.
+```
+
+You should now be able to visit the Ray dashboard. 
+
+![Ray dashboard](./images/ray-dashboard-screenshot.png)
+Once the cluster is connected and models are verified, the main script can be run.
+
+```bash
+cd /mnt/f/ray-pi
+source .venv/bin/activate
+python main.py
+```
+
+It's a bit messy but we should see some text somewhere to show the generation was successful:
+
+![LLama successfully generated text](./images/successful-desktop-test.png)
+
+
+Text generated: 
+
+```text
+Quantization helps inference by significantly reducing the model size and computational complexity, which in turn accelerates the inference process and reduces power consumption. By converting the model's weights
+ and activations to lower bit representations, quantization enables the use of more efficient hardware and software implementations, making it possible to run complex models on devices with limited resources, such
+ as mobile phones and edge devices. This not only speeds up the inference time but also makes the models more accessible and deployable in a wide range of real-world applications.
+```
+
+</div>
+
+<div style="flex:1; width: 50%;">
+
+### Raspberry Pi (CPU node)
+
+We connect to the Pi, create a project directory, and set up a virtual environment for CPU inference using llama.cpp.
+
+```bash
+ssh admin@thunderpi.local
+
+cd ~/Desktop
+mkdir -p ray-pi
+cd ray-pi
+
+python3 -m venv ray-pi-env
+source ray-pi-env/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install "ray[default]" llama-cpp-python
+```
+
+We create a models directory and download a quantized TinyLlama GGUF model. Q4_K_M is chosen as a good balance for CPU.
+
+```bash
+mkdir -p ~/Desktop/ray-pi/models
+cd ~/Desktop/ray-pi/models
+
+curl -L https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v0.3-GGUF/resolve/main/tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf -o tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf
+
+ls -lh
+```
+> Since I was on the webpage I just downloaded the model using the button and [croc](https://github.com/schollz/croc) sent it on my local network.  Whatever works for you. 
+
+We verify the environment and imports.
+
+```bash
+cd ~/Desktop/ray-pi
+source ray-pi-env/bin/activate
+
+which python
+python --version
+
+python -c "import ray; print(ray.__version__)"
+python -c "import llama_cpp; print('llama-cpp-python ok')"
+```
+
+We optionally test local inference to confirm the model loads correctly.
+
+```bash
+python - <<EOF
+from llama_cpp import Llama
+
+llm = Llama(
+    model_path="/home/admin/Desktop/ray-pi/models/tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf",
+    n_ctx=512,
+)
+
+print(llm("Hello", max_tokens=32)["choices"][0]["text"])
+EOF
+```
+
+You can run the `pwd` command to check your path and adjust your model path as necessary.
+
+Finally, we join the Ray cluster using the desktop IP. A custom `"pi"` resource is added so tasks can be routed to this node.
+
+```bash
+ray stop --force
+
+ray start \
+  --address='WSL_IP:6379' \
+  --num-cpus=2 \
+  --resources='{"pi": 1}'
+```
+
+</div>
+
+</div>
+
+## Notes
+
+The Q4_K_M quantization provides a good balance between performance and output quality on the Raspberry Pi. Lower-bit quantizations degrade quality significantly, while higher-bit variants increase latency without much benefit here.
+
+The Ray head runs inside WSL, so the Raspberry Pi must be able to reach it over the local network. Make sure your networking between devices is sorted first. This is usually Raspberry Pi bothers. 
+
+For reliability in distributed execution, models on the Pi are loaded from a fixed local path rather than dynamically downloading them, but you can download when the model is run with some changes to the .py files.
