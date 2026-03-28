@@ -47,9 +47,7 @@ Operating temperature: 0 – 50 degrees C ambient
 </div>
 
 
-
-
-
+<div style="flex:1; width: 50%;">
 
 
 ```bash
@@ -74,6 +72,8 @@ Operating temperature: 0 – 50 degrees C ambient
                                Locale: en_GB.UTF-8
 
 ```
+
+<div style="flex:2; width: 50%;">
 
 - Desktop PC - home build *(trimmed down to just the important bits)*
 
@@ -108,6 +108,7 @@ Operating temperature: 0 – 50 degrees C ambient
                                          Locale: en_US.UTF-8
 
 ```
+</div>
 
 ## Networking
 
