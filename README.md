@@ -162,14 +162,14 @@ exec zsh
 
 pyenv install 3.11.9
 
-cd /mnt/f/ray-pi
+cd /mnt/e/github/big-node-little-node
 pyenv local 3.11.9
 ```
 
 We create a virtual environment and install Ray, vLLM, and llama-cpp-python for GPU-backed inference and orchestration.
 
 ```bash
-cd /mnt/f/ray-pi
+cd /mnt/e/github/big-node-little-node
 python -m venv .venv
 source .venv/bin/activate
 
@@ -292,7 +292,7 @@ You should now be able to visit the Ray dashboard.
 Once the cluster is connected and models are verified, the main script can be run.
 
 ```bash
-cd /mnt/f/ray-pi
+cd /mnt/e/github/big-node-little-node
 source .venv/bin/activate
 python main.py
 ```
