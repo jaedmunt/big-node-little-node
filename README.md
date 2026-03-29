@@ -121,6 +121,10 @@ Router -> Ethernet LAN cable -> Desktop...
 
 We are bound to small/micro models for both nodes. 
 
+WHile I didn't use it at the time of choosing my models model, I have since come across [llmfit](https://github.com/AlexsJones/llmfit) which offers an easy way to check which models can run on your hardware in an interactive dashboard.
+
+![llmfit dashboard](./images/llmlfit-demo.png)
+
 For the RPi, I opted for a CPU only model:[TinyLlama-1.1B-Chat-v0.3-GGUF](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v0.3-GGUF) available on Huggingface. 
 
 There are 12 available quantisations of this model. I chose
