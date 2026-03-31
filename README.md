@@ -1,4 +1,4 @@
-﻿<a id="readme-top"></a>
+<a id="readme-top"></a>
 
 <p align="center">
   <img src="./images/banner.png" alt="Big Node Little Node" width="100%" />
@@ -44,7 +44,7 @@
 
 ---
 
-This is a toy project with a few initial goals, beginning with simple scaffolding, serving and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines.
+We start with a few goals, starting with simple scaffolding, serving and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines.
 
 ### Gotchas
 > - n.b. I use zsh not bash - adjust `.zshrc` references to `.bashrc` as needed
