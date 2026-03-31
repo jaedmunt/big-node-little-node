@@ -2,3 +2,7 @@
 .venv
 clip.exe
 xsel
+node_modules/
+bun.lock
+package.json
+.env

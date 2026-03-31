@@ -1,4 +1,4 @@
-# big-node-little-node
+﻿# big-node-little-node
 Serving two nodes (desktop PC with nvidia RTX 3060 and raspberry pi 4) with [Ray](https://docs.ray.io/en/latest/index.html) and [vLLM](https://docs.vllm.ai/en/latest/)/[Llama-cpp](https://github.com/ggml-org/llama.cpp). For fun!
 
 This is a toy project with a few initial goals, beginning with simple scaffolding, serving and and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines. 
@@ -6,12 +6,16 @@ This is a toy project with a few initial goals, beginning with simple scaffoldin
 ### Gotchas
 > n.b. I use zsh instead of bash. So adjust commands to .bashrc instead of .zshrc
 
-Goals:
-- [ ] We want to use Ray to run two models on some consumer hardware:
+> **WSL users:** Ray binds to the WSL internal IP (`172.x.x.x`) which the Pi cannot reach. Either use a native Linux/Windows Python env (recommended), or set up port forwarding - see the [WSL networking note](#wsl-networking-note) below.
+
+> **Python versions must match across all Ray nodes.** Use pyenv to pin 3.11.9 on both desktop and Pi.
+
+### Goals:
+- [x] We want to use Ray to run two models on some consumer hardware:
   - A desktop PC 
   - A Raspberry Pi 4B
 
-- [ ] Output text and render on in each terminal 
+- [x] Output text and render on in each terminal 
 - [ ] Connect webui and try each model
 
 - [ ] Rig the models to converse with each other and have a conversation about a topic
@@ -32,7 +36,7 @@ Broadcom BCM2711, Quad core Cortex-A72 (ARM v8) 64-bit SoC @ 1.8GHz
 Gigabit Ethernet
 2 USB 3.0 ports; 2 USB 2.0 ports.
 Raspberry Pi standard 40 pin GPIO header (fully backwards compatible with previous boards)
-2 × micro-HDMI® ports (up to 4kp60 supported)
+2x micro-HDMI® ports (up to 4kp60 supported)
 2-lane MIPI DSI display port
 2-lane MIPI CSI camera port
 4-pole stereo audio and composite video port
@@ -42,7 +46,7 @@ Micro-SD card slot for loading operating system and data storage
 5V DC via USB-C connector (minimum 3A*)
 5V DC via GPIO header (minimum 3A*)
 Power over Ethernet (PoE) enabled (requires separate PoE HAT)
-Operating temperature: 0 – 50 degrees C ambient
+Operating temperature: 0 - 50 degrees C ambient
 ```
 </div>
 
@@ -100,10 +104,10 @@ Operating temperature: 0 – 50 degrees C ambient
   `/ossssso+/:-        -:/+osssso+-      Memory: 851.17 MiB / 39.10 GiB (2%)
  `+sso+:-`                 `.-/+oso:     Swap: 0 B / 10.00 GiB (0%)
 `++:.                           `-/+/    Disk (/): 31.86 GiB / 1006.85 GiB (3%) - ext4
-.`                                 `/    Disk (/mnt/c): [redacted] 
-                                         Disk (/mnt/d): [redacted]
-                                         Disk (/mnt/e): [redacted]
-                                         Disk (/mnt/f): 354.65 GiB / 931.50 GiB (38%) - 9p
+.`                                 `/    Disk (/mnt/c): 233.64 GiB / 237.63 GiB (98%) - 9p
+                                         Disk (/mnt/d): 354.71 GiB / 930.96 GiB (38%) - 9p
+                                         Disk (/mnt/e): 809.96 GiB / 931.50 GiB (87%) - 9p
+                                         Disk (/mnt/f): 100.47 GiB / 931.50 GiB (11%) - 9p
                                          Local IP (eth0):  [redacted]
                                          Locale: en_US.UTF-8
 
@@ -117,11 +121,13 @@ Local networking via the below setup
 Router -> Ethernet LAN cable -> Desktop...
 ...Desktop -> USB-C to Ethernet adaptor -> Ethernet LAN cable -> Raspberry Pi
 
+> **Note:** The Pi joins the Ray cluster using the desktop's LAN IP. If running Ray inside WSL, that IP won't be reachable from the Pi by default - see the [WSL networking note](#wsl-networking-note) in the setup section.
+
 ## Choosing a model
 
 We are bound to small/micro models for both nodes. 
 
-WHile I didn't use it at the time of choosing my models model, I have since come across [llmfit](https://github.com/AlexsJones/llmfit) which offers an easy way to check which models can run on your hardware in an interactive dashboard.
+While I didn't use it at the time of choosing my models model, I have since come across [llmfit](https://github.com/AlexsJones/llmfit) which offers an easy way to check which models can run on your hardware in an interactive dashboard.
 
 ![llmfit dashboard](./images/llmlfit-demo.png)
 
@@ -140,9 +146,33 @@ Name: [tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf](https://huggingface.co/TheBloke/Tin
 
 We note here that 3.14Gb is 3/4 of our available Rpi4 RAM at ~4gb. Also that the 3.14GB footprint fits comfortably in the 30GB storage on the raspberry pi. Sweet. 
 
-## Distributed Setup (WSL Desktop ↔ Raspberry Pi)
+## Distributed Setup (WSL Desktop <-> Raspberry Pi)
 
 This section sets up two nodes: a desktop (WSL, GPU via RTX 3060) acting as the Ray head, and a Raspberry Pi acting as a CPU worker. Each side has its own virtual environment and model runtime, and they are connected over the local network using Ray.
+
+### WSL networking note
+
+WSL runs behind a NAT with an internal IP (e.g. `172.x.x.x`) that the Pi cannot reach directly. You have two options:
+
+**Option A (recommended): use a native Linux or Windows Python env for the desktop**, not WSL. Install Python and the venv on Windows natively or on a Linux machine. This gives Ray a real LAN IP and avoids any forwarding setup.
+
+**Option B: port forward from Windows to WSL.** In PowerShell as admin, forward the Ray ports from your Windows LAN IP to the WSL IP:
+
+```powershell
+$wsl = '172.x.x.x'       # your WSL IP (ip addr show eth0)
+$lan = '192.168.0.x'      # your Windows LAN IP
+foreach ($port in @(6379, 8265, 8076)) {
+    netsh interface portproxy add v4tov4 listenaddress=$lan listenport=$port connectaddress=$wsl connectport=$port
+}
+```
+
+Then start the Ray head binding to the LAN IP:
+
+```bash
+ray start --head --port=6379 --dashboard-host=0.0.0.0 --node-ip-address=192.168.0.x
+```
+
+> **Warning:** Ray has no authentication by default. Port forwarding exposes your cluster to anyone on your LAN. Only do this on a trusted private network.
 
 I recommend running [htop](https://htop.dev/) in a pane or terminal to monitor resources. Both to check it is running and to make sure we're not hitting any nasty spikes.  
 
@@ -170,7 +200,7 @@ cd /mnt/e/github/big-node-little-node
 pyenv local 3.11.9
 ```
 
-We create a virtual environment and install Ray, vLLM, and llama-cpp-python for GPU-backed inference and orchestration.
+We create a virtual environment and install Ray, vLLM, and llama-cpp-python for GPU-backed inference and orchestration. Note: this is a WSL (Linux) venv - run all commands from inside WSL, not Windows CMD/PowerShell.
 
 ```bash
 cd /mnt/e/github/big-node-little-node
@@ -237,6 +267,13 @@ GPU 0: NVIDIA GeForce RTX 3060 (UUID: GPU-af4b4c75-6037-6435-74fd-56d537593282)
 
 We then start the Ray head node. The printed IP will be used by the Raspberry Pi.
 
+If using **WSL with port forwarding (Option B)**, pass your Windows LAN IP explicitly:
+```bash
+ray stop --force
+ray start --head --port=6379 --dashboard-host=0.0.0.0 --node-ip-address=YOUR_LAN_IP
+```
+
+If using **native Linux or Windows (Option A)**:
 ```bash
 ray stop --force
 ray start --head --port=6379 --dashboard-host=0.0.0.0
@@ -252,8 +289,8 @@ Stopped all 2 Ray processes.
 ```
 
 ```bash
-┌── 15:33:53 :: root in
-│ …/ray-pi on ⛓ main on ☁️  us-east-1
+â”Œâ”€â”€ 15:33:53 :: root in
+â”‚ .../ray-pi on â›“ main on â˜ï¸  us-east-1
 ray start --head --port=6379 --dashboard-host=0.0.0.0
 Usage stats collection is enabled. To disable this, add `--disable-usage-stats` to the command that starts the cluster, or run the following command: `ray disable-usage-stats` before starting the cluster. See http
 s://docs.ray.io/en/master/cluster/usage-stats.html for more details.
@@ -320,20 +357,22 @@ Quantization helps inference by significantly reducing the model size and comput
 
 ### Raspberry Pi (CPU node)
 
-We connect to the Pi, create a project directory, and set up a virtual environment for CPU inference using llama.cpp.
+We connect to the Pi, create a project directory, and set up a virtual environment for CPU inference using llama.cpp. Ray requires the same Python version on all nodes - we use [uv](https://docs.astral.sh/uv/) to install a prebuilt Python 3.11 and manage the venv. This avoids compiling Python from source (which takes ~30-45 mins on Pi).
 
 ```bash
 ssh admin@thunderpi.local
+
+curl -LsSf https://astral.sh/uv/install.sh | sh
+exec zsh
 
 cd ~/Desktop
 mkdir -p ray-pi
 cd ray-pi
 
-python3 -m venv ray-pi-env
+uv venv ray-pi-env --python 3.11
 source ray-pi-env/bin/activate
 
-python -m pip install --upgrade pip
-python -m pip install "ray[default]" llama-cpp-python
+uv pip install "ray[default]" llama-cpp-python
 ```
 
 We create a models directory and download a quantized TinyLlama GGUF model. Q4_K_M is chosen as a good balance for CPU.
@@ -354,7 +393,6 @@ We verify the environment and imports.
 cd ~/Desktop/ray-pi
 source ray-pi-env/bin/activate
 
-which python
 python --version
 
 python -c "import ray; print(ray.__version__)"
@@ -384,14 +422,26 @@ Finally, we join the Ray cluster using the desktop IP. A custom `"pi"` resource 
 ray stop --force
 
 ray start \
-  --address='WSL_IP:6379' \
+  --address='DESKTOP_LAN_IP:6379' \
   --num-cpus=2 \
   --resources='{"pi": 1}'
 ```
 
+Both nodes connected - the cluster dashboard at `DESKTOP_LAN_IP:8265/cluster` should show the desktop and Pi as active nodes.
+
+![Ray cluster with both nodes connected](./images/cluster-running.png)
+
 </div>
 
 </div>
+
+## Configuration
+
+Copy `.env.example` to `.env` and adjust the paths for your setup before running. The `.env` file must be present on both the desktop and the Pi (the Pi reads `PI_MODEL_PATH` when the Ray actor starts there).
+
+```bash
+cp .env.example .env
+```
 
 ## Notes
 
