@@ -342,8 +342,7 @@ It's a bit messy but we should see some text somewhere to show the generation wa
 
 ![LLama successfully generated text](./images/successful-desktop-test.png)
 
-
-Text generated: 
+Prompt: `Write one short paragraph about why quantization helps inference.`
 
 ```text
 Quantization helps inference by significantly reducing the model size and computational complexity, which in turn accelerates the inference process and reduces power consumption. By converting the model's weights
@@ -415,6 +414,22 @@ EOF
 ```
 
 You can run the `pwd` command to check your path and adjust your model path as necessary.
+
+Running `pi_model.py` (see `pi/` in the repo):
+
+![TinyLlama successfully generated text on Pi](./images/successful-pi-test.png)
+
+Prompt: `Write one short paragraph about why small language models are useful.`
+
+```text
+Small language models are useful for a few reasons:
+
+1. Speed: Large language models can be very computationally expensive to train and maintain.
+   A smaller model can be more efficient and easier to train, allowing for more powerful models.
+2. Efficiency: Small language models can be used for many tasks that are difficult or impossible
+   for larger models, such as sentiment analysis, text summarization, and generation.
+3. Flexibility: Small language models can be customized to fit the needs of specific tasks.
+```
 
 Finally, we join the Ray cluster using the desktop IP. A custom `"pi"` resource is added so tasks can be routed to this node.
 
