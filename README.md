@@ -44,7 +44,7 @@
 
 ---
 
-We start with a few goals, starting with simple scaffolding, serving and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines.
+We begin with a few goals, starting with simple scaffolding, serving and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines.
 
 ### Gotchas
 > - n.b. I use zsh not bash - adjust `.zshrc` references to `.bashrc` as needed
