@@ -1,14 +1,55 @@
-﻿# big-node-little-node
-Serving two nodes (desktop PC with nvidia RTX 3060 and raspberry pi 4) with [Ray](https://docs.ray.io/en/latest/index.html) and [vLLM](https://docs.vllm.ai/en/latest/)/[Llama-cpp](https://github.com/ggml-org/llama.cpp). For fun!
+﻿<a id="readme-top"></a>
 
-This is a toy project with a few initial goals, beginning with simple scaffolding, serving and and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines. 
+<p align="center">
+  <img src="./images/banner.png" alt="Big Node Little Node" width="100%" />
+  <br/>
+  <sub>Banner adapted from <a href="https://www.youtube.com/watch?v=VkzgX7lCpH0">Asking my german shepherd and mini schnauzer a question</a> by jimintustin</sub>
+</p>
+
+<h3 align="center">Big Node Little Node</h3>
+
+<p align="center">
+  Distributed ML inference across a desktop RTX 3060 and a Raspberry Pi 4B, connected with Ray.
+  <br /><br />
+  <img src="https://img.shields.io/badge/Python-3.11.9-3776AB?logo=python&logoColor=white" alt="Python 3.11.9" />
+  &nbsp;
+  <img src="https://img.shields.io/badge/Ray-2.54-028CF0" alt="Ray 2.54" />
+  &nbsp;
+  <img src="https://img.shields.io/badge/vLLM-GPU%20inference-76B900?logo=nvidia&logoColor=white" alt="vLLM" />
+  &nbsp;
+  <img src="https://img.shields.io/badge/llama.cpp-CPU%20inference-F97316" alt="llama.cpp" />
+</p>
+
+---
+
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#quickstart">Quickstart</a></li>
+    <li><a href="#hardware-os">Hardware &amp; OS</a></li>
+    <li><a href="#networking">Networking</a></li>
+    <li><a href="#choosing-a-model">Choosing a Model</a></li>
+    <li>
+      <a href="#distributed-setup-wsl-desktop---raspberry-pi">Distributed Setup</a>
+      <ul>
+        <li><a href="#wsl-networking-note">WSL Networking Note</a></li>
+        <li><a href="#wsl-desktop---rtx-3060">Desktop (WSL - RTX 3060)</a></li>
+        <li><a href="#raspberry-pi-arm-cortex-a72">Raspberry Pi (ARM Cortex-A72)</a></li>
+      </ul>
+    </li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#notes">Notes</a></li>
+  </ol>
+</details>
+
+---
+
+This is a toy project with a few initial goals, beginning with simple scaffolding, serving and testing the models. These may/will expand. I will document the steps taken and choices, so you can do the same for your machines.
 
 ### Gotchas
-> n.b. I use zsh instead of bash. So adjust commands to .bashrc instead of .zshrc
-
-> **WSL users:** Ray binds to the WSL internal IP (`172.x.x.x`) which the Pi cannot reach. Either use a native Linux/Windows Python env (recommended), or set up port forwarding - see the [WSL networking note](#wsl-networking-note) below.
-
-> **Python versions must match across all Ray nodes.** Use pyenv to pin 3.11.9 on both desktop and Pi.
+> - n.b. I use zsh not bash - adjust `.zshrc` references to `.bashrc` as needed
+> - **WSL users:** Ray binds to the WSL internal IP (`172.x.x.x`) which the Pi cannot reach. Either use a native Linux/Windows Python env (recommended), or set up port forwarding - see the [WSL networking note](#wsl-networking-note) below.
+> - **Python versions must match across all Ray nodes.** Use pyenv to pin 3.11.9 on both desktop and Pi.
 
 ### Goals:
 - [x] We want to use Ray to run two models on some consumer hardware:
@@ -20,14 +61,56 @@ This is a toy project with a few initial goals, beginning with simple scaffoldin
 
 - [ ] Rig the models to converse with each other and have a conversation about a topic
 
-## Hardware, OS
-- [Raspberry Pi 4B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
-  - Raspberry Pi OS (Debian GNU/Linux 12.3 (trixie))
-  - BCM2710 (4) @ 1.80 GHz *n.b. ARM architecture*
-r- Broadcom bcm2710-vc5 [Integrated]
+## Quickstart
 
-<div style="display: inline-block; background-color: blue; padding: 10px; width: 50%;">
-  <img src="https://assets.raspberrypi.com/static/blueprint-labelled-97975f4b1159239a8e248d180be87e3e.svg" alt="Raspberry Pi 4 Tech Specs" style="display: block; margin: auto; width: 60%;">
+Clone the repo and copy the config:
+
+```bash
+git clone https://github.com/jaedmunt/big-node-little-node
+cd big-node-little-node
+cp .env.example .env  # then fill in your model paths
+```
+
+**Desktop (WSL)** - install deps and start the Ray head:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install "ray[default]" vllm llama-cpp-python
+ray start --head --port=6379 --dashboard-host=0.0.0.0
+```
+
+**Raspberry Pi** - install deps and join the cluster:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh && exec zsh
+uv venv ~/Desktop/ray-pi/ray-pi-env --python 3.11
+source ~/Desktop/ray-pi/ray-pi-env/bin/activate
+uv pip install "ray[default]"==2.54.0 llama-cpp-python
+ray start --address='DESKTOP_LAN_IP:6379' --num-cpus=2 --resources='{"pi": 1}'
+```
+
+**Run:**
+
+```bash
+# on desktop
+python main.py
+```
+
+> See [Distributed Setup](#distributed-setup-wsl-desktop---raspberry-pi) for full install steps and [Configuration](#configuration) for `.env` details.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Hardware, OS
+
+**[Raspberry Pi 4B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)**
+- Raspberry Pi OS (Debian GNU/Linux 13, trixie) · aarch64
+- Broadcom BCM2711, Quad core Cortex-A72 (ARM v8) @ 1.8GHz
+- 4GB LPDDR4-3200 · 28GB storage
+
+<details>
+<summary>Full specs + fastfetch</summary>
+
+<img src="https://assets.raspberrypi.com/static/blueprint-labelled-97975f4b1159239a8e248d180be87e3e.svg" alt="Raspberry Pi 4 Tech Specs" width="60%">
 
 ```text
 Broadcom BCM2711, Quad core Cortex-A72 (ARM v8) 64-bit SoC @ 1.8GHz
@@ -35,24 +118,12 @@ Broadcom BCM2711, Quad core Cortex-A72 (ARM v8) 64-bit SoC @ 1.8GHz
 2.4 GHz and 5.0 GHz IEEE 802.11ac wireless, Bluetooth 5.0, BLE
 Gigabit Ethernet
 2 USB 3.0 ports; 2 USB 2.0 ports.
-Raspberry Pi standard 40 pin GPIO header (fully backwards compatible with previous boards)
+Raspberry Pi standard 40 pin GPIO header
 2x micro-HDMI® ports (up to 4kp60 supported)
-2-lane MIPI DSI display port
-2-lane MIPI CSI camera port
-4-pole stereo audio and composite video port
-H.265 (4kp60 decode), H264 (1080p60 decode, 1080p30 encode)
-OpenGL ES 3.1, Vulkan 1.0
 Micro-SD card slot for loading operating system and data storage
 5V DC via USB-C connector (minimum 3A*)
-5V DC via GPIO header (minimum 3A*)
-Power over Ethernet (PoE) enabled (requires separate PoE HAT)
 Operating temperature: 0 - 50 degrees C ambient
 ```
-</div>
-
-
-<div style="flex:1; width: 50%;">
-
 
 ```bash
         _,met$$$$$gg.          admin@thunderpi
@@ -65,25 +136,24 @@ Operating temperature: 0 - 50 degrees C ambient
  $$:      $$.   -    ,d$$'     Shell: zsh 5.9
  $$;      Y$b._   _,d$P'       Display (DSI-1): 800x480 @ 60 Hz in 7"
  Y$$.    `.`"Y$$$$P"'          WM: labwc (Wayland)
- `$$b      "-.__               Cursor: Adwaita
-  `Y$$b                        Terminal: /dev/pts/0
-   `Y$$.                       CPU: BCM2711 (4) @ 1.80 GHz
-     `$$b.                     GPU: Broadcom bcm2711-vc5 [Integrated]
-       `Y$$b.                  Memory: 387.95 MiB / 3.71 GiB (10%)
-         `"Y$b._               Swap: 0 B / 2.00 GiB (0%)
-             `""""             Disk (/): 10.47 GiB / 28.09 GiB (37%) - ext4
-                               Local IP (wlan0):[redacted] 
-                               Locale: en_GB.UTF-8
-
+ `$$b      "-.__               CPU: BCM2711 (4) @ 1.80 GHz
+  `Y$$b                        GPU: Broadcom bcm2711-vc5 [Integrated]
+   `Y$$.                       Memory: 387.95 MiB / 3.71 GiB (10%)
+     `$$b.                     Disk (/): 10.47 GiB / 28.09 GiB (37%) - ext4
+       `Y$$b.                  Locale: en_GB.UTF-8
+         `"Y$b._
+             `""""
 ```
 
-<div style="flex:2; width: 50%;">
+</details>
 
-- Desktop PC - home build *(trimmed down to just the important bits)*
+**Desktop PC** - home build
+- Windows 11 + WSL (Arch Linux)
+- Intel Core i5-10500 (12) @ 3.10GHz
+- NVIDIA GeForce RTX 3060 (12GB VRAM) · 39GB RAM
 
-  - Windows 11 with WSL (Archlinux)
-  - NVIDIA GeForce RTX 3060 (11.83 GiB)
-  - Intel(R) Core(TM) i5-10500 (12) @ 3.10 GHz
+<details>
+<summary>fastfetch</summary>
 
 ```bash
                   -`                     root@DESKTOP-C0P5MSL
@@ -96,23 +166,21 @@ Operating temperature: 0 - 50 degrees C ambient
            `/++++/+++++++:               Display (XWAYLAND0): 2560x1440, 60 Hz
           `/++++++++++++++:              Display (XWAYLAND1): 1920x1080 in 24", 60 Hz
          `/+++ooooooooooooo/`            WM: Weston WM (Microsoft Corporation)
-        ./ooosssso++osssssso+`           Cursor: Adwaita
-       .oossssso-````/ossssss+`          Terminal: nvim
-      -osssssso.      :ssssssso.         CPU: Intel(R) Core(TM) i5-10500 (12) @ 3.10 GHz
-     :osssssss/        osssso+++.        GPU 1: NVIDIA GeForce RTX 3060 (11.83 GiB) [Discrete]
-    /ossssssss/        +ssssooo/-        GPU 2: Intel(R) UHD Graphics 630 (128.00 MiB) [Integrated]
-  `/ossssso+/:-        -:/+osssso+-      Memory: 851.17 MiB / 39.10 GiB (2%)
- `+sso+:-`                 `.-/+oso:     Swap: 0 B / 10.00 GiB (0%)
-`++:.                           `-/+/    Disk (/): 31.86 GiB / 1006.85 GiB (3%) - ext4
-.`                                 `/    Disk (/mnt/c): 233.64 GiB / 237.63 GiB (98%) - 9p
-                                         Disk (/mnt/d): 354.71 GiB / 930.96 GiB (38%) - 9p
-                                         Disk (/mnt/e): 809.96 GiB / 931.50 GiB (87%) - 9p
-                                         Disk (/mnt/f): 100.47 GiB / 931.50 GiB (11%) - 9p
-                                         Local IP (eth0):  [redacted]
-                                         Locale: en_US.UTF-8
-
+        ./ooosssso++osssssso+`           CPU: Intel(R) Core(TM) i5-10500 (12) @ 3.10 GHz
+       .oossssso-````/ossssss+`          GPU 1: NVIDIA GeForce RTX 3060 (11.83 GiB) [Discrete]
+      -osssssso.      :ssssssso.         GPU 2: Intel(R) UHD Graphics 630 (128.00 MiB) [Integrated]
+     :osssssss/        osssso+++.        Memory: 851.17 MiB / 39.10 GiB (2%)
+    /ossssssss/        +ssssooo/-        Disk (/): 31.86 GiB / 1006.85 GiB (3%) - ext4
+  `/ossssso+/:-        -:/+osssso+-      Disk (/mnt/e): 809.96 GiB / 931.50 GiB (87%) - 9p
+ `+sso+:-`                 `.-/+oso:     Disk (/mnt/f): 100.47 GiB / 931.50 GiB (11%) - 9p
+`++:.                           `-/+/    Local IP (eth0): [redacted]
+.`                                 `/    Locale: en_US.UTF-8
 ```
-</div>
+
+</details>
+
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Networking
 
@@ -144,11 +212,16 @@ Name: [tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf](https://huggingface.co/TheBloke/Tin
 
 > GGML_TYPE_Q4_K - "type-1" 4-bit quantization in super-blocks containing 8 blocks, each block having 32 weights. Scales and mins are quantized with 6 bits. This ends up using 4.5 bpw.
 
-We note here that 3.14Gb is 3/4 of our available Rpi4 RAM at ~4gb. Also that the 3.14GB footprint fits comfortably in the 30GB storage on the raspberry pi. Sweet. 
+We note here that 3.14Gb is 3/4 of our available Rpi4 RAM at ~4gb. Also that the 3.14GB footprint fits comfortably in the 30GB storage on the raspberry pi. Sweet.
+
+For the desktop, I chose [Qwen/Qwen2.5-7B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-AWQ) - a 7B instruction-tuned model with AWQ (Activated Weight Quantization), served via vLLM. AWQ keeps quality close to the full-precision model while cutting VRAM usage significantly, making it a good fit for a 12GB RTX 3060. vLLM pulls it directly from HuggingFace on first run.
+
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Distributed Setup (WSL Desktop <-> Raspberry Pi)
 
-This section sets up two nodes: a desktop (WSL, GPU via RTX 3060) acting as the Ray head, and a Raspberry Pi acting as a CPU worker. Each side has its own virtual environment and model runtime, and they are connected over the local network using Ray.
+This section sets up two nodes: a desktop (WSL, GPU via RTX 3060) acting as the Ray head, and a Raspberry Pi (ARM Cortex-A72) acting as a CPU worker. Each side has its own virtual environment and model runtime, and they are connected over the local network using Ray.
 
 ### WSL networking note
 
@@ -178,9 +251,7 @@ I recommend running [htop](https://htop.dev/) in a pane or terminal to monitor r
 
 ![LLama successfully generated text](./images/htop.png)
 
-<div style="display:flex; gap:10px;">
 
-<div style="flex:1; width: 50%;">
 
 ### WSL (Desktop - RTX 3060)
 
@@ -289,8 +360,8 @@ Stopped all 2 Ray processes.
 ```
 
 ```bash
-â”Œâ”€â”€ 15:33:53 :: root in
-â”‚ .../ray-pi on â›“ main on â˜ï¸  us-east-1
+┌── 15:33:53 :: root in
+│ .../ray-pi on ⛓ main on ☁️  us-east-1
 ray start --head --port=6379 --dashboard-host=0.0.0.0
 Usage stats collection is enabled. To disable this, add `--disable-usage-stats` to the command that starts the cluster, or run the following command: `ray disable-usage-stats` before starting the cluster. See http
 s://docs.ray.io/en/master/cluster/usage-stats.html for more details.
@@ -350,11 +421,9 @@ Quantization helps inference by significantly reducing the model size and comput
  as mobile phones and edge devices. This not only speeds up the inference time but also makes the models more accessible and deployable in a wide range of real-world applications.
 ```
 
-</div>
 
-<div style="flex:1; width: 50%;">
 
-### Raspberry Pi (CPU node)
+### Raspberry Pi (ARM Cortex-A72)
 
 We connect to the Pi, create a project directory, and set up a virtual environment for CPU inference using llama.cpp. Ray requires the same Python version on all nodes - we use [uv](https://docs.astral.sh/uv/) to install a prebuilt Python 3.11 and manage the venv. This avoids compiling Python from source (which takes ~30-45 mins on Pi).
 
@@ -446,9 +515,10 @@ Both nodes connected - the cluster dashboard at `DESKTOP_LAN_IP:8265/cluster` sh
 
 ![Ray cluster with both nodes connected](./images/cluster-running.png)
 
-</div>
 
-</div>
+
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Configuration
 
@@ -465,3 +535,5 @@ The Q4_K_M quantization provides a good balance between performance and output q
 The Ray head runs inside WSL, so the Raspberry Pi must be able to reach it over the local network. Make sure your networking between devices is sorted first. This is usually Raspberry Pi bothers. 
 
 For reliability in distributed execution, models on the Pi are loaded from a fixed local path rather than dynamically downloading them, but you can download when the model is run with some changes to the .py files.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>

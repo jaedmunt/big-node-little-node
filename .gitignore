@@ -6,3 +6,5 @@ node_modules/
 bun.lock
 package.json
 .env
+images/woofandwuf.jpg
+images/banner.jpg
