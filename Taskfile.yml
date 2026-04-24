@@ -1,0 +1,42 @@
+version: '3'
+
+tasks:
+  chat:
+    desc: Interactive Python chat (talks to Ray directly)
+    cmds:
+      - uv run interface/chat.py {{.CLI_ARGS}}
+
+  router:
+    desc: Start the HTTP router — bridges Ray actors to :8100 (desktop) and :8101 (Pi)
+    cmds:
+      - uv run interface/router.py
+
+  rig:
+    desc: Rig.rs Rust client (start router first with `task router`)
+    cmds:
+      - cargo run --manifest-path interface/Cargo.toml -- {{.CLI_ARGS}}
+
+  webui:
+    desc: Open WebUI in Docker (start router first with `task router`)
+    cmds:
+      - bash interface/webui.sh
+
+  run:
+    desc: Interactive setup — choose your interface
+    cmds:
+      - uv run run.py
+
+  test-api:
+    desc: Ping both local model endpoints
+    cmds:
+      - uv run tests/test_api.py
+
+  test-vllm:
+    desc: Test vLLM standalone (desktop only)
+    cmds:
+      - uv run tests/test_vllm.py
+
+  test-llama:
+    desc: Test llama-cpp standalone (run on Pi)
+    cmds:
+      - uv run tests/test_llama.py

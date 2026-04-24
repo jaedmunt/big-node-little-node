@@ -8,3 +8,4 @@ package.json
 .env
 images/woofandwuf.jpg
 images/banner.jpg
+interface/.ports

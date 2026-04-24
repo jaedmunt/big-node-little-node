@@ -1,0 +1,5 @@
+# Written automatically by router.py at startup.
+# You don't need to create this manually — it's here so you know the format.
+# Override the ports via DESKTOP_ROUTER_PORT / PI_ROUTER_PORT in .env instead.
+desktop=http://localhost:8100/v1
+pi=http://localhost:8101/v1

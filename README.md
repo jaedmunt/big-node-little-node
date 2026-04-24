@@ -38,6 +38,7 @@
       </ul>
     </li>
     <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#interface">Interface</a></li>
     <li><a href="#notes">Notes</a></li>
   </ol>
 </details>
@@ -527,6 +528,40 @@ Copy `.env.example` to `.env` and adjust the paths for your setup before running
 ```bash
 cp .env.example .env
 ```
+
+## Interface
+
+The easiest way is the interactive launcher — it asks for a topic and which interface you want, then starts the right processes for you:
+
+```bash
+make run   # or: task run   or: uv run run.py
+```
+
+Or start each piece manually:
+
+**Python (Ray direct)** — simplest, talks to the Ray actors directly:
+```bash
+make chat TOPIC="your topic"
+```
+Type a message and press Enter at any time to interject. Ctrl+C to quit.
+
+**Rig.rs** — Rust client, requires the router running first:
+```bash
+make router   # terminal 1 — bridges Ray actors to HTTP on :8100 and :8101
+make rig TOPIC="your topic"   # terminal 2
+```
+The router auto-picks free ports and writes them to `interface/.ports` so the Rust client finds them automatically. Override with `DESKTOP_ROUTER_PORT` / `PI_ROUTER_PORT` in `.env`.
+
+Ctrl+P or Enter to interject. Ctrl+Q to quit.
+
+**Open WebUI (Docker)** — browser UI, requires the router running first:
+```bash
+make router   # terminal 1
+make webui    # terminal 2 — starts WebUI at http://localhost:3000
+```
+Add the router endpoints under Settings → Connections.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Notes
 
